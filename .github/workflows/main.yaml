@@ -84,5 +84,34 @@ jobs:
           image: vprofileapp
           tag: latest, ${{ github.run_number }}
           region: ${{ env.AWS_REGION }}
+  
+  Deploy_to_EKS:
+    needs: BUILS_AND_PUBLISH
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get Kube config file
+        run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER }} --region ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        run: kubectl create secret docker-registry regcred --docker-server=https://$ECR_REGISTRY --docker-username=$ECR_USERNAME --docker-password=$ECR_PASSWORD --docker-email=none
+
+      - name: Deploy Helm
+        uses: bitovi/github-actions-deploy-eks-helm@v1.2.8
+        with:
+          chart: ./helm/vprofilecharts
+          namespace: default
+          values: |
+            appImage=${{ secrets.REGISTRY }}/${{ env.ECR_REPOSITORY}}
+            appImageTag=${{ github.run_number }}
+          stack: vprofilestack
       
